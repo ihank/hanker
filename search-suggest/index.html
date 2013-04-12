@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>wp-search-suggest</title>
+<style>
+*{font-size: 12px;padding: 0;margin: 0;font-family: microsoft yahei;}
+ul{list-style: none;}
+a{text-decoration: none;color: #444;}
+a:hover{color: #222;} 
+body{padding: 20px;}
+.search-suggest{width: 200px;}
+.search-suggest a{display: block;padding: 6px 10px;background-color: #eee;color: #444;margin-bottom: 1px;}
+.search-suggest a.active{background-color: #bbb;color: #222;}
+.search-suggest a span{float: right;color: #999;}
+</style>
+</head>
+<body>
+
+<input type="text" id="search-input">
+<div class="search-suggest" id="search-suggest"></div>
+
+<script src="http://code.jquery.com/jquery-1.4.2.min.js"></script>
+<script>
+/*
+ * searchSuggest v1.0
+ * @description: jQuery search suggest plugin
+ * @author: haozi
+*/
+;(function($){
+	function searchSuggest(element, options){
+		this.options = {
+			target: null,
+			http: null,
+			itemClass: 'item',
+			template: null,
+			show: 10,
+			init: null,
+			data: null,
+			/**
+			 * {array} sort 数据排序方式
+				格式
+				[^]列号|别名[+][$]
+				^ 头部匹配
+				$ 尾部匹配
+				+ 当前及之后字段匹配
+			*/
+			sort: ['^2+$','^2+','2+'],
+
+			/*
+			 * 当前显示className
+			 * {string}
+			*/
+			active: 'active'
+		};
+		this._init(element, options);
+	};
+
+	searchSuggest.prototype = {
+		_cur: -1,
+		_str: null,
+		
+		_init: function(element, options){
+			$.extend(true, this.options, options);
+
+			var o = this;
+
+			o._target = $(o.options.target);
+			o._input = $(element);
+
+			o._input.bind('input',function(){
+				o._change();
+			});
+
+			o._input.bind('keydown',function(e){
+				var conut = o._target.find('.'+o.options.itemClass).length;
+				var key = e.keyCode;  
+				if (key == 13) Search(); 
+
+				if(key == 38){ 
+					if(o._cur <= 0) o._cur = conut; 
+					o._cur--;  
+					o._active();
+				}
+				else if(key == 40){
+					o._cur++;  
+					if(o._cur == conut) o._cur =0; 
+					o._active();
+				}
+			});
+
+			o._target.bind('mouseover',function(e){
+				e = e || window.event;
+				var target = e.target || e.srcElement;
+
+				if(target.parentNode.className.indexOf(o.options.itemClass)>=0){
+					target = target.parentNode;
+				}
+				if(target.className.indexOf(o.options.itemClass)>=0){
+					$(target).addClass(o.options.active).siblings().removeClass(o.options.active);
+					o._cur = $(target).attr('data-id');
+				}
+			});
+
+			o._input.bind('focus',function(){
+				if(!o._str){
+					o._initsug();
+				}else{
+					o._change();
+				}
+				o._timer = setInterval(function(){
+					o._input.val(o._str);
+				},0);
+			});
+
+			o._input.bind('blur',function(){
+				o._target.fadeOut(100,function(){
+					o._target.html('');
+				});
+				clearInterval(o._timer);
+			});
+		},
+
+		_initsug: function(){
+			var o = this;
+			o._target.show().html('');
+			for (var i = 0; i < o.options.init.length; i++) {
+				if(i===o.options.show) return;
+				o._target.append(o._callback((i+'^'+o.options.init[i]).split('^')));
+			};
+		},
+
+		_change: function(){
+			var o = this;
+			o._str = $.trim(o._input.val());
+
+			if(!o._str){
+				o._initsug();
+				return;
+			}
+
+			o._target.show().html('');
+
+			o._cur = -1;
+
+			var	b='', 
+				r=['^'+o._str+'$','^'+o._str+'[^]+$','^[^'+o._str+'].*'+o._str+'.*$'], 
+				s='',
+				c=null,
+				w=[];
+
+			for (var i = 0; i < o.options.sort.length; i++) {
+				var k = o.options.sort[i];
+				if(k.indexOf('^')>=0 && k.indexOf('$')>=0){
+					b = k.substr(1).replace('$','');
+					s = r[0];
+				}else if(k.indexOf('^')>=0){
+					b = k.substr(1);
+					s = r[1];
+				}else{
+					b = k;
+					s = r[2];
+				}
+
+				c = o._filter(b,s);
+
+				if(c.length!=0) w.push(c);
+			};
+
+			var jsonkeytmp = w.toString().split(',');
+			var jsonkey=[];
+
+			for(var i = 0;i < jsonkeytmp.length;i++){ 
+				!RegExp(jsonkeytmp[i],'g').test(jsonkey.join(',')) && (jsonkey.push(jsonkeytmp[i])); 
+			} 
+
+			for (var i = 0; i < jsonkey.length; i++) {
+				if(i===o.options.show) return;
+				// var ac = '';
+				// if(i===0) ac = ' '+o.options.active;
+				o._target.append(o._callback((i+'^'+o.options.data[jsonkey[i]]).split('^')));
+			};
+		},
+
+		_active: function(){
+			var o = this;
+			$(o._target.find('.'+o.options.itemClass)[o._cur]).addClass(o.options.active).siblings().removeClass(o.options.active);  
+		},
+
+		_callback: function(data){
+			var o = this, a = {
+				dataid: data[0],
+				class: o.options.itemClass,
+				href: o.options.http+data[1],
+				count: data[2],
+				title: data[3]
+			};
+			if(typeof(o.options.template)==='function') {
+				return o.options.template(a);
+			}else{
+				return '<a class="'+a['class']+'" data-id="'+a['dataid']+'" href="'+a['href']+'"><span>'+a['count']+'</span>'+a['title']+'</a>';
+			}
+		},
+
+		_filter: function(tag,arr){
+			var o = this, list=[], as = o.options.data;
+			for (var i = 0; i < as.length; i++) { 
+				var res=null, item=as[i].split('^');
+				if(tag.indexOf('+')>=0){
+					var key = tag.replace('+','');
+					if(item.length-1>=key){
+						for (var k = key; k < item.length; k++) {
+							res = item[k].match(new RegExp(arr,'g'));
+							if(res) {
+								list.push(i);
+							}
+						}
+					}
+				}else{
+					if(item.length-1>=tag){	
+						res = item[tag].match(new RegExp(arr,'g')); 
+						if(res) {
+							list.push(i);
+						}
+					}
+				}
+
+			};
+			return list;
+		}
+	};
+	$.fn.searchSuggest = function(options) {
+		var s = new searchSuggest(this, options);
+	};
+}(jQuery));
+
+$('#search-input').searchSuggest({
+	target: '#search-suggest',
+	http: 'http://www.aa.com',
+	init: ["/?tag=%e4%b8%bb%e6%9c%ba^1^主机^%e4%b8%bb%e6%9c%ba","/?tag=http^1^HTTP^http","/?tag=%e5%ad%97%e4%bd%93%e8%ae%be%e8%ae%a1^1^字体设计^%e5%ad%97%e4%bd%93%e8%ae%be%e8%ae%a1","/?tag=samsung-galaxy^1^Samsung Galaxy^samsung-galaxy","/?tag=%e4%b8%89%e6%98%9f^1^三星^%e4%b8%89%e6%98%9f"],
+	data: [
+		"/?tag=htmlcss^93^HTML/CSS^htmlcss","/?tag=news^63^前端新闻^news","/?tag=front-skills^61^前端技巧^front-skills","/?tag=designs^61^设计路上^designs","/?tag=front-development^60^前端开发^front-development","/?tag=javascript^47^JavaScript^javascript","/?tag=css^45^css^css","/?tag=user-experience^45^用户体验^user-experience","/?tag=design-ideas^41^设计思路^design-ideas","/?tag=seo^40^SEO^seo","/?tag=website-design^40^网页设计^website-design","/?tag=html5^36^html5^html5","/?tag=front-resources^33^前端资源^front-resources","/?tag=adsense-necessary^33^站长必备^adsense-necessary","/?tag=professional^33^职业^professional","/?tag=daqianduan^32^大前端^daqianduan","/?tag=css3^29^css3^css3","/?tag=wordpress^29^wordpress^wordpress","/?tag=jobs^29^招聘/求职^jobs","/?tag=recruitment^27^招聘^recruitment","/?tag=browser^27^浏览器^browser","/?tag=company^25^企业公司^company","/?tag=search-optimization^22^搜索引擎优化^search-optimization","/?tag=jquery^19^jQuery^jquery","/?tag=compatible^17^兼容^compatible","/?tag=google^15^Google^google","/?tag=html^15^html^html","/?tag=ie9^15^IE9^ie9","/?tag=web-development^15^web开发^web-development","/?tag=web-standards^14^web标准^web-standards","/?tag=front-tools^13^前端工具^front-tools","/?tag=ie6^12^ie6^ie6","/?tag=search-engine^10^搜索引擎^search-engine","/?tag=announcement^10^网站公告^announcement","/?tag=electronic-business^9^电子商务^electronic-business","/?tag=haozi^9^浩子^haozi","/?tag=promotion^8^网站推广^promotion","/?tag=firefox^7^firefox^firefox","/?tag=facebook^7^facebook^facebook","/?tag=css3-explain^7^css3详解^css3-explain","/?tag=daqianduan-themes^7^大前端主题^daqianduan-themes","/?tag=wordpress-themes^7^wordpress主题^wordpress-themes","/?tag=tencent^6^腾讯^tencent","/?tag=resources^6^资源^resources","/?tag=advertising^6^创意广告^advertising","/?tag=front-activities^6^前端活动^front-activities","/?tag=d4-theme^6^D4主题^d4-theme","/?tag=baidu^5^百度^baidu","/?tag=ctrip^5^携程^ctrip","/?tag=chrome^4^chrome^chrome","/?tag=flash^4^flash^flash","/?tag=iphone^4^iPhone^iphone","/?tag=software^4^软件^software","/?tag=mobile-development^4^移动开发^mobile-development","/?tag=web-3^3^web 3.0^web-3","/?tag=casual-games^3^休闲游戏^casual-games","/?tag=from-life^3^生活感言^from-life","/?tag=life^3^生活^life","/?tag=dreamweaver^3^Dreamweaver^dreamweaver","/?tag=d5%e4%b8%bb%e9%a2%98^3^D5主题^d5%e4%b8%bb%e9%a2%98","/?tag=3d^2^3D^3d","/?tag=bug^2^bug^bug","/?tag=win7^2^win7^win7","/?tag=ico^2^图标^ico","/?tag=fun^2^娱乐^fun","/?tag=graphic-design^2^平面设计^graphic-design","/?tag=qq^2^QQ^qq","/?tag=css3-examples^2^css3实例^css3-examples","/?tag=ie10^2^IE10^ie10","/?tag=404^2^404^404","/?tag=scroll-bar^2^滚动条^scroll-bar","/?tag=rolling^2^滚动^rolling","/?tag=sublime^2^sublime^sublime","/?tag=%e5%89%8d%e7%ab%af%e8%81%9a%e4%bc%9a^2^前端聚会^%e5%89%8d%e7%ab%af%e8%81%9a%e4%bc%9a","/?tag=wordpress%e9%a1%b5%e9%9d%a2%e6%a8%a1%e7%89%88^2^Wordpress页面模版^wordpress%e9%a1%b5%e9%9d%a2%e6%a8%a1%e7%89%88","/?tag=d7%e4%b8%bb%e9%a2%98^2^D7主题^d7%e4%b8%bb%e9%a2%98","/?tag=share^1^分享^share","/?tag=wap^1^wap^wap","/?tag=wordpress-plugin^1^wordpress插件^wordpress-plugin","/?tag=internet^1^互联网^internet","/?tag=plugin^1^插件^plugin","/?tag=content-networking^1^物联网^content-networking","/?tag=software-system^1^软件系统^software-system","/?tag=twitter^1^Twitter^twitter","/?tag=celebrity^1^人物^celebrity","/?tag=%e5%be%ae%e5%8d%9a^1^微博^%e5%be%ae%e5%8d%9a","/?tag=360^1^360^360","/?tag=alipay^1^支付宝^alipay","/?tag=sns^1^SNS^sns","/?tag=iframe^1^iframe^iframe","/?tag=logo^1^logo^logo","/?tag=netease^1^网易^netease","/?tag=performance^1^性能^performance","/?tag=alexa^1^alexa^alexa","/?tag=css3-animation^1^css3动画^css3-animation","/?tag=%e7%bc%96%e8%be%91%e5%99%a8^1^编辑器^%e7%bc%96%e8%be%91%e5%99%a8","/?tag=ad-code^1^广告代码^ad-code","/?tag=%e5%ae%9e%e5%90%8d%e5%88%b6^1^实名制^%e5%ae%9e%e5%90%8d%e5%88%b6","/?tag=jquery-plugin^1^jQuery插件^jquery-plugin","/?tag=pictures-plugin^1^图片插件^pictures-plugin","/?tag=dshare^1^Dshare^dshare","/?tag=html5-tag^1^html5标签^html5-tag","/?tag=layout^1^布局^layout","/?tag=productivity^1^生产率^productivity","/?tag=poker^1^德州^poker","/?tag=d4-theme-bugs^1^D4主题Bug征集^d4-theme-bugs","/?tag=%e5%8d%8e%e5%bc%ba%e5%8c%97^1^华强北^%e5%8d%8e%e5%bc%ba%e5%8c%97","/?tag=win8^1^win8^win8","/?tag=win8-app^1^win8 app^win8-app","/?tag=wordpress-tag^1^wordpress tag^wordpress-tag","/?tag=%e4%b8%bb%e6%9c%ba^1^主机^%e4%b8%bb%e6%9c%ba","/?tag=http^1^HTTP^http","/?tag=%e5%ad%97%e4%bd%93%e8%ae%be%e8%ae%a1^1^字体设计^%e5%ad%97%e4%bd%93%e8%ae%be%e8%ae%a1","/?tag=samsung-galaxy^1^Samsung Galaxy^samsung-galaxy","/?tag=%e4%b8%89%e6%98%9f^1^三星^%e4%b8%89%e6%98%9f","/?tag=apple^1^Apple^apple","/?tag=%e5%a4%87%e6%a1%88^1^备案^%e5%a4%87%e6%a1%88","/?tag=android^1^Android^android","/?tag=css3%e5%9b%be%e6%a0%87^1^CSS3图标^css3%e5%9b%be%e6%a0%87","/?tag=%e7%ba%b9%e7%90%86%e8%ae%be%e8%ae%a1^1^纹理设计^%e7%ba%b9%e7%90%86%e8%ae%be%e8%ae%a1","/?tag=%e6%b5%ae%e5%87%ba%e5%b1%82^1^浮出层^%e6%b5%ae%e5%87%ba%e5%b1%82","/?tag=vps^1^VPS^vps","/?tag=wordpress%e4%b8%bb%e6%9c%ba^1^Wordpress主机^wordpress%e4%b8%bb%e6%9c%ba","/?tag=%e9%82%ae%e4%bb%b6^1^邮件^%e9%82%ae%e4%bb%b6","/?tag=smtp^1^SMTP^smtp","/?tag=chrome%e6%8f%92%e4%bb%b6^1^Chrome插件^chrome%e6%8f%92%e4%bb%b6","/?tag=webrebuild^1^webrebuild^webrebuild","/?tag=ios^1^IOS^ios","/?tag=%e6%97%a5%e5%8e%86^1^日历^%e6%97%a5%e5%8e%86","/?tag=psd^1^psd^psd"
+	]
+});
+</script>
+
+</body>
+</html>

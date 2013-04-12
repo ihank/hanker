@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>rand match</title>
+<style>
+*{font-family: microsoft yahei;font-size: 14px;}
+td{padding: 2px 20px;}
+tr:nth-child(odd){background-color: #eee;} 
+textarea{width: 160px;float: left;}
+button{float: left;position: relative;top: 290px;margin: 0 20px;}
+</style>
+</head>
+<body>
+
+<textarea id="pool" rows="30">浩子
+曼玉
+青霞
+冰冰
+紫薇
+雨荷</textarea>
+<button id="match">Rand Match</button>
+<table><tbody id="result"></tbody></table>
+
+<script>
+window.onload = function(){
+	if(!window.localStorage) return;
+	var pol = document.getElementById('pool'), btn = document.getElementById('match'), okk = document.getElementById('result');
+	btn.onclick = function(){
+		var ary = pol.value.split('\n'), res = [], tmp = [];
+		if(localStorage.getItem('pool') && localStorage.getItem('pool').length>=10){
+			okk.innerHTML = localStorage.getItem('okk');
+			btn.innerHTML = '+1000 :( ke le na lai !!';
+		}else{
+			okk.innerHTML = '';
+			if(!localStorage.getItem('pool')) localStorage.setItem('pool',1);
+			for (var key in ary) {
+				if(ary[key]) tmp.push(ary[key]);
+			}
+			for (var i = 0; i<Math.ceil(ary.length/2); i++) {
+				var back = [];
+				for (var k = 0; k<2; k++) {
+					if (tmp.length>0) {
+						var a = Math.floor(Math.random()*tmp.length);
+						back[k] = tmp[a];
+						tmp.splice(a, 1);
+					} else {
+						break;
+					}
+				}
+				okk.innerHTML = okk.innerHTML+'<tr><td>'+(i+1)+'.</td><td>'+back[0]+'</td>'+(back[1]?'<td>'+back[1]+'</td>':'')+'</tr>';
+			}
+			localStorage.setItem('okk', okk.innerHTML);
+			localStorage.setItem('pool', localStorage.getItem('pool')+1);
+		}
+		
+	}
+};
+</script>
+</body>
+</html>
