@@ -292,6 +292,19 @@ button.close {
   visibility: hidden;
 }
 
+.fade {
+  opacity: 0;
+  -webkit-transition: opacity 0.15s linear;
+     -moz-transition: opacity 0.15s linear;
+       -o-transition: opacity 0.15s linear;
+          transition: opacity 0.15s linear;
+}
+
+.fade.in {
+  opacity: 1;
+}
+
+
 
 /* ================================ pre ================================================================================================================ */
 
@@ -1131,11 +1144,9 @@ input[type="button"].btn-block {
 }
 .modal-backdrop.fade {
   opacity: 0;
-  display: none;
 }
 .modal-backdrop,
 .modal-backdrop.fade.in {
-  display: block;
   opacity: 0.8;
   filter: alpha(opacity=80);
 }
